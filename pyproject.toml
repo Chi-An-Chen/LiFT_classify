@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lift-classify"
+version = "0.1.0"
+description = "LiFT-architecture image classification with a shared recurrent transformer core"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["torch>=2.2"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["lift_classify*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

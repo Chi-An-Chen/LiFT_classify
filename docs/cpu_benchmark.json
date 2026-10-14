@@ -1,0 +1,221 @@
+{
+  "config": {
+    "image_size": [
+      224,
+      224
+    ],
+    "in_channels": 3,
+    "patch_size": [
+      16,
+      16
+    ],
+    "num_classes": 1000,
+    "hidden_dim": 192,
+    "num_heads": 3,
+    "mlp_ratio": 4.0,
+    "prelude_depth": 2,
+    "core_depth": 2,
+    "num_loops": 2,
+    "dropout": 0.0,
+    "attention_dropout": 0.0
+  },
+  "estimates": [
+    {
+      "model": "Dense ViT",
+      "num_loops": 1,
+      "tokens": 196,
+      "unique_blocks": 4,
+      "executed_blocks": 4,
+      "parameters": 2158120,
+      "forward_flops": 869833728
+    },
+    {
+      "model": "Looped ViT",
+      "num_loops": 1,
+      "tokens": 196,
+      "unique_blocks": 4,
+      "executed_blocks": 4,
+      "parameters": 2158120,
+      "forward_flops": 869833728
+    },
+    {
+      "model": "LiFT classification",
+      "num_loops": 1,
+      "tokens": 196,
+      "unique_blocks": 4,
+      "executed_blocks": 4,
+      "parameters": 3167592,
+      "forward_flops": 871922688
+    },
+    {
+      "model": "Dense / LiFT blocks",
+      "num_loops": 1,
+      "tokens": 196,
+      "unique_blocks": 4,
+      "executed_blocks": 4,
+      "parameters": 3081192,
+      "forward_flops": 871750656
+    },
+    {
+      "model": "Dense ViT",
+      "num_loops": 2,
+      "tokens": 196,
+      "unique_blocks": 6,
+      "executed_blocks": 6,
+      "parameters": 3047848,
+      "forward_flops": 1275657216
+    },
+    {
+      "model": "Looped ViT",
+      "num_loops": 2,
+      "tokens": 196,
+      "unique_blocks": 4,
+      "executed_blocks": 6,
+      "parameters": 2158120,
+      "forward_flops": 1275657216
+    },
+    {
+      "model": "LiFT classification",
+      "num_loops": 2,
+      "tokens": 196,
+      "unique_blocks": 4,
+      "executed_blocks": 6,
+      "parameters": 3167592,
+      "forward_flops": 1278802944
+    },
+    {
+      "model": "Dense / LiFT blocks",
+      "num_loops": 2,
+      "tokens": 196,
+      "unique_blocks": 6,
+      "executed_blocks": 6,
+      "parameters": 4414312,
+      "forward_flops": 1278458880
+    },
+    {
+      "model": "Dense ViT",
+      "num_loops": 4,
+      "tokens": 196,
+      "unique_blocks": 10,
+      "executed_blocks": 10,
+      "parameters": 4827304,
+      "forward_flops": 2087304192
+    },
+    {
+      "model": "Looped ViT",
+      "num_loops": 4,
+      "tokens": 196,
+      "unique_blocks": 4,
+      "executed_blocks": 10,
+      "parameters": 2158120,
+      "forward_flops": 2087304192
+    },
+    {
+      "model": "LiFT classification",
+      "num_loops": 4,
+      "tokens": 196,
+      "unique_blocks": 4,
+      "executed_blocks": 10,
+      "parameters": 3167592,
+      "forward_flops": 2092563456
+    },
+    {
+      "model": "Dense / LiFT blocks",
+      "num_loops": 4,
+      "tokens": 196,
+      "unique_blocks": 10,
+      "executed_blocks": 10,
+      "parameters": 7080552,
+      "forward_flops": 2091875328
+    },
+    {
+      "model": "Dense ViT",
+      "num_loops": 8,
+      "tokens": 196,
+      "unique_blocks": 18,
+      "executed_blocks": 18,
+      "parameters": 8386216,
+      "forward_flops": 3710598144
+    },
+    {
+      "model": "Looped ViT",
+      "num_loops": 8,
+      "tokens": 196,
+      "unique_blocks": 4,
+      "executed_blocks": 18,
+      "parameters": 2158120,
+      "forward_flops": 3710598144
+    },
+    {
+      "model": "LiFT classification",
+      "num_loops": 8,
+      "tokens": 196,
+      "unique_blocks": 4,
+      "executed_blocks": 18,
+      "parameters": 3167592,
+      "forward_flops": 3720084480
+    },
+    {
+      "model": "Dense / LiFT blocks",
+      "num_loops": 8,
+      "tokens": 196,
+      "unique_blocks": 18,
+      "executed_blocks": 18,
+      "parameters": 12413032,
+      "forward_flops": 3718708224
+    }
+  ],
+  "accounting": "Per image, final readout only, multiply-add=2; excludes elementwise operations.",
+  "cpu_latency": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "torch_version": "2.14.0",
+    "device": "cpu",
+    "dtype": "float32",
+    "num_threads": 1,
+    "batch_size": 1,
+    "config": {
+      "image_size": [
+        224,
+        224
+      ],
+      "in_channels": 3,
+      "patch_size": [
+        16,
+        16
+      ],
+      "num_classes": 1000,
+      "hidden_dim": 192,
+      "num_heads": 3,
+      "mlp_ratio": 4.0,
+      "prelude_depth": 2,
+      "core_depth": 2,
+      "num_loops": 2,
+      "dropout": 0.0,
+      "attention_dropout": 0.0
+    },
+    "measurements": [
+      {
+        "num_loops": 1,
+        "median_ms": 5.937770496529993,
+        "iqr_ms": 2.2699797445966396
+      },
+      {
+        "num_loops": 2,
+        "median_ms": 7.42483300564345,
+        "iqr_ms": 0.9877499978756532
+      },
+      {
+        "num_loops": 4,
+        "median_ms": 11.916687501070555,
+        "iqr_ms": 1.1365942445991095
+      },
+      {
+        "num_loops": 8,
+        "median_ms": 20.904791992506944,
+        "iqr_ms": 1.9223955023335293
+      }
+    ]
+  }
+}

@@ -1,0 +1,154 @@
+# LiFT Image Classification
+
+以 PyTorch 實作的 LiFT-inspired 影像分類模型，保留共享 recurrent core、
+input reinjection 與 continuous depth conditioning。同一組權重可在推論時使用不同 loop counts。
+
+本專案是分類任務的架構改編，並非完整 LiFT 生成模型；不包含 VAE、Diffusion、
+Flow Matching 或完整資料訓練流程。增加 loops 是否改善分類準確率，需要另外實驗驗證。
+
+## 安裝與測試
+
+環境需求：Python 3.10 以上、PyTorch 2.2 以上。模型執行僅依賴 PyTorch；測試使用 pytest。
+
+在專案根目錄執行：
+
+```sh
+python -m pip install -e '.[test]'
+python -m pytest -q
+```
+
+## 快速開始
+
+```python
+import torch
+from lift_classify import LiFTClassifier, tiny_config
+
+model = LiFTClassifier(tiny_config(num_classes=10, num_loops=2))
+images = torch.randn(2, 3, 224, 224)
+labels = torch.tensor([2, 7])
+
+logits = model(images)  # [2, 10]
+loss = torch.nn.functional.cross_entropy(logits, labels)
+loss.backward()
+
+model.eval()
+with torch.inference_mode():
+    logits = model(images, num_loops=8)  # 不增加參數，執行更多次 Core
+```
+
+模型輸入為浮點 tensor `[B, in_channels, H, W]`；輸出為未經 softmax 的 logits
+`[B, num_classes]`。Labels 僅傳給 loss，不作為模型 conditioning。
+
+影像的 resize、像素正規化與 augmentation 由呼叫端處理。H、W 可與設定中的
+`image_size` 不同，但必須為 `patch_size` 的正整數倍；支援矩形影像與矩形 patches。
+
+## 模型架構
+
+```text
+RGB Image → Patch Embedding → Prelude（執行一次）
+          → Shared Recurrent Core × K
+          → Conditional Token RMSNorm → Global Average Pooling → Classification Head
+```
+
+每次 loop 的狀態更新：
+
+```text
+h0 = Prelude(PatchEmbed(images), c_base)
+h  = Core(RMSNorm(h) + h0, c_base + DepthEmbedding(s_k))
+```
+
+`c_base` 是跨樣本共用、可學習的固定 conditioning。Depth embedding 僅作用於 Core。
+Attention 與 MLP 使用 RMSNorm、per-head QK RMSNorm、2D RoPE、GELU 與 gated AdaLN。
+
+AdaLN modulation 採零初始化，因此 Attention／MLP／depth embedding 在第一次
+backward 可能得到零梯度；gates 更新後才會啟動這些路徑。分類 head 使用非零初始化。
+
+## 模型設定
+
+| Preset | Hidden dimension | Heads | Prelude blocks | Core blocks | 預設 loops |
+|---|---:|---:|---:|---:|---:|
+| `tiny_config()` | 192 | 3 | 2 | 2 | 2 |
+| `small_config()` | 384 | 6 | 2 | 2 | 2 |
+| `paper_reference_config("B")` | 768 | 12 | 4 | 2 | 4 |
+| `paper_reference_config("L")` | 1024 | 16 | 4 | 5 | 4 |
+| `paper_reference_config("XL")` | 1152 | 16 | 4 | 6 | 4 |
+
+Tiny／Small 預設使用 RGB 224×224、patch=16、MLP ratio=4、1,000 類。
+Paper-reference 預設使用 `[B, 4, 32, 32]`、patch=2，保留論文 latent geometry，
+但仍搭配本專案的分類 head；沒有提供預訓練權重。
+
+```python
+from lift_classify import LiFTConfig, paper_reference_config
+
+config = LiFTConfig(
+    image_size=224, in_channels=3, patch_size=16, num_classes=100,
+    hidden_dim=256, num_heads=4, mlp_ratio=4.0,
+    prelude_depth=2, core_depth=3, num_loops=4,
+    dropout=0.0, attention_dropout=0.0,
+)
+rgb_reference = paper_reference_config(
+    "B", core_depth=2, image_size=224, in_channels=3, patch_size=16,
+)
+```
+
+`hidden_dim` 必須可被 `num_heads` 整除，且每個 head 的 dimension 必須可被 4 整除。
+設定 `num_loops` 只改變預設執行深度，不改變獨立參數量。
+
+## Intermediate supervision 與 depth coordinates
+
+```python
+output = model(
+    images, num_loops=4,
+    return_intermediates=True,
+    return_intermediate_logits=True,
+)
+final_logits = output["logits"]
+states = output["hidden_states"]              # (h0, ..., h4)，保留 autograd
+loop_logits = output["intermediate_logits"]   # (z0, ..., z4)，共用分類 head
+coordinates = output["depth_coordinates"]    # [B, 4]，不含 Prelude 的 s=0
+```
+
+兩個 return flags 都為 False 時只回傳 logits tensor；任一 flag 為 True 時回傳上述字典，
+未要求的 intermediate 欄位為 `None`。只要求 states 時不額外計算 intermediate heads。
+也可以用 `model.classify_features(states[k])` 只讀出指定 state。
+
+訓練與推論預設皆使用均勻座標 `s_k = k/K`。若需要研究隨機深度座標：
+
+```python
+from lift_classify import sample_depth_coordinates
+
+depths = sample_depth_coordinates(images.shape[0], 4, device=images.device)
+logits = model(images, num_loops=4, depth_coordinates=depths)
+```
+
+自訂座標必須是 `[K]` 或 `[B, K]` 的浮點 tensor，在 `(0, 1]` 內嚴格遞增，終點為 1。
+預設 loss 仍是 final CE；intermediate loss、distillation 或 trajectory loss 由呼叫端定義。
+
+## 參數、FLOPs 與 CPU latency
+
+```sh
+python -m tools.analyze_model --preset tiny --loops 1 2 4 8
+python -m tools.analyze_model --preset tiny --loops 1 2 4 8 --latency --threads 1 --json
+```
+
+Tiny（RGB 224×224、patch=16、1,000 類）有 3,167,592 個參數；K=2／4／8
+約為 1.279／2.093／3.720 forward GFLOPs。FLOPs 是解析估算，不等同硬體延遲。
+
+## 程式結構與參考
+
+| 位置 | 用途 |
+|---|---|
+| `lift_classify/model.py` | 分類 backbone、共享 recurrence 與 readout |
+| `lift_classify/blocks.py` | AdaLN gated Transformer blocks |
+| `lift_classify/layers.py` | Attention、RMSNorm、2D RoPE、MLP |
+| `lift_classify/conditioning.py` | Continuous depth embedding 與座標 helper |
+| `lift_classify/config.py` | 設定驗證與模型 presets |
+| `tests/` | 公式、shape、共享權重、梯度與穩定性測試 |
+| `tools/analyze_model.py` | 成本比較與 CPU latency |
+
+詳細來源、分類改編與未確認細節見 [架構文件](docs/architecture.md)，
+測試及 CPU 測量紀錄見 [驗證文件](docs/validation.md)。英文完整說明見 [README.md](README.md)。
+
+論文：[LiFT: Loop Flow Transformers](https://arxiv.org/html/2610.05538v1)。
+底層 block 參考：[SpeedrunDiT](https://github.com/SwayStar123/SpeedrunDiT)。
+尚未驗證官方 LiFT 程式碼 parity 或真實分類資料準確率。
