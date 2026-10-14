@@ -1,0 +1,28 @@
+{
+  "model": {
+    "image_size": 256,
+    "in_channels": 3,
+    "patch_size": 16,
+    "num_classes": 2,
+    "hidden_dim": 192,
+    "num_heads": 3,
+    "mlp_ratio": 4.0,
+    "prelude_depth": 2,
+    "core_depth": 2,
+    "num_loops": 4,
+    "dropout": 0.1,
+    "attention_dropout": 0.0
+  },
+  "training": {
+    "epochs": 100,
+    "batch_size": 128,
+    "learning_rate": 0.0003,
+    "min_learning_rate": 0.000003,
+    "warmup_epochs": 5,
+    "weight_decay": 0.05,
+    "gradient_clip": 1.0,
+    "seed": 42,
+    "num_workers": 4,
+    "precision": "bf16"
+  }
+}

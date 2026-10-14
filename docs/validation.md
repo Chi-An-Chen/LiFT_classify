@@ -1,5 +1,10 @@
 # Validation
 
+The original model-only results below predate the FAS trainer. The added FAS
+training, resume and inference suite now passes **149 tests with 2 CUDA skips**;
+MPS FP32 inference and multi-worker loading were checked outside the sandbox.
+See [FAS validation and dataset audit](fas_training.md#validation-boundary).
+
 Validated on 2026-10-14 with Python 3.12.13, PyTorch 2.14.0, and pytest 9.1.1,
 using an existing environment without installing/upgrading its dependencies.
 Runtime platform: macOS 27.0.1, arm64, CPU. The exact CPU SKU was not available

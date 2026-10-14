@@ -4,7 +4,8 @@
 input reinjection 與 continuous depth conditioning。同一組權重可在推論時使用不同 loop counts。
 
 本專案是分類任務的架構改編，並非完整 LiFT 生成模型；不包含 VAE、Diffusion、
-Flow Matching 或完整資料訓練流程。增加 loops 是否改善分類準確率，需要另外實驗驗證。
+Flow Matching。已提供 FAS 二分類訓練、驗證與推論入口；增加 loops 是否改善分類準確率，
+仍需要另外實驗驗證。
 
 ## 安裝與測試
 
@@ -16,6 +17,40 @@ Flow Matching 或完整資料訓練流程。增加 loops 是否改善分類準�
 python -m pip install -e '.[test]'
 python -m pytest -q
 ```
+
+## FAS_all 訓練與推論
+
+先在 RTX 5090 主機安裝支援 Blackwell 的官方 PyTorch／torchvision CUDA 12.8+
+配套，再於 repository 根目錄執行：
+
+```sh
+python -m pip install -e '.[train,test]'
+python -m tools.train --config configs/fas_lift_tiny.json \
+  --data-root /path/to/FAS_all --output-dir outputs/fas_lift_tiny --device cuda
+```
+
+預設完整影像 letterbox 至 256×256、patch16、D192、P2／R2／K4，使用 class-weighted
+final CE、AdamW、100 epochs、batch128、CUDA BF16。只使用溫和色彩與光照增強，
+不使用 crop、rotation、flip、blur 或額外 JPEG 壓縮。
+
+```sh
+# 從完成的 epoch 邊界續訓；設定由 last.pt 讀回
+python -m tools.train --data-root /path/to/FAS_all \
+  --output-dir outputs/fas_lift_tiny --resume outputs/fas_lift_tiny/last.pt --device cuda
+
+# 支援單張圖片或資料夾，auto 依序選擇 CUDA → MPS → CPU
+python -m tools.predict --checkpoint outputs/fas_lift_tiny/best.pt \
+  --input /path/to/image.jpg --output outputs/predictions.csv --device auto
+
+# 使用同一份 checkpoint 比較 loops，不重新訓練
+python -m tools.evaluate --checkpoint outputs/fas_lift_tiny/best.pt \
+  --data-root /path/to/FAS_all --output-dir outputs/fas_evaluation --loops 1 2 4 8
+```
+
+保留原始 train／test 與所有重複圖片，`test` 作為挑選模型的 validation。
+已知有 176 組完全重複影像跨越 train／test，因此分數不可當成獨立泛化成績。
+類別為 fake=0、live=1，固定 `p_live >= 0.5` 判定 live；不調整門檻來挑選最佳成績。
+詳細參數、輸出與續訓限制見 [FAS 訓練說明](docs/fas_training.md)。
 
 ## 快速開始
 

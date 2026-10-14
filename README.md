@@ -14,12 +14,42 @@ at larger K is an open experiment.
 
 ## Install and run
 
-Python 3.10+ and PyTorch 2.2+ are required. PyTorch is the only runtime dependency.
+Python 3.10+ and PyTorch 2.2+ are required. The model itself only depends on PyTorch.
+The optional FAS training/evaluation tools also use torchvision, Pillow, NumPy and scikit-learn.
 
 ```sh
 python -m pip install -e '.[test]'
 python -m pytest -q
 ```
+
+## FAS training and inference
+
+The FAS trainer preserves the original `train/{fake,live}` and `test/{fake,live}`
+directories, using `test` as **validation for checkpoint selection**. It retains
+duplicates as requested and records their hashes and cross-split overlap. These
+scores are not independent test/generalization results.
+
+Run these tools from the repository root. For RTX 5090, first install a matching
+official PyTorch/torchvision CUDA 12.8+ build that supports Blackwell; the model's
+minimum PyTorch version alone does not ensure GPU compatibility.
+
+```sh
+python -m pip install -e '.[train,test]'
+python -m tools.train --config configs/fas_lift_tiny.json \
+  --data-root /path/to/FAS_all --output-dir outputs/fas_lift_tiny --device cuda
+python -m tools.train --data-root /path/to/FAS_all \
+  --output-dir outputs/fas_lift_tiny --resume outputs/fas_lift_tiny/last.pt --device cuda
+python -m tools.predict --checkpoint outputs/fas_lift_tiny/best.pt \
+  --input /path/to/image.jpg --output outputs/predictions.csv --device auto
+python -m tools.evaluate --checkpoint outputs/fas_lift_tiny/best.pt \
+  --data-root /path/to/FAS_all --output-dir outputs/fas_evaluation --loops 1 2 4 8
+```
+
+Default recipe: full-image 256px letterbox, patch16, D192, P2/R2/K4, weighted final
+CE, 100 epochs, AdamW, batch128, CUDA BF16. Only mild color/lighting augmentation
+is enabled; no crop, rotation, flip, blur, or extra compression. Auto inference
+selects CUDA → MPS → CPU and uses FP32. See [the FAS training guide](docs/fas_training.md)
+for exact settings, resume requirements, output files and validation limits.
 
 ```python
 import torch
