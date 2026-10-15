@@ -1,6 +1,6 @@
 # LiFT classification
 
-A trainable PyTorch image classifier that preserves the LiFT recurrent architecture:
+An unofficial, trainable PyTorch image classifier inspired by the LiFT recurrent architecture:
 
 ```text
 RGB patches → Prelude (once) → shared Core (K loops) → conditional token RMSNorm → GAP → Linear
@@ -11,6 +11,47 @@ The core has one set of weights, regardless of K. Labels are used only by the lo
 This is a classification adaptation, with final cross-entropy instead of LiFT's
 generative trajectory objective. Increasing K is supported, but improved accuracy
 at larger K is an open experiment.
+
+## Attribution, adaptations, and license
+
+This is an **unofficial classification adaptation** by Chi-An Chen, inspired by
+**LiFT: Loop Flow Transformers** (2026) by Mohammad Mahdi Derakhshani,
+Pedro M. P. Curvo, Gertjan J. Burghouts, Jan-Willem van de Meent, and Cees G. M. Snoek.
+[Paper, v1](https://arxiv.org/abs/2610.05538v1).
+It is not affiliated with or endorsed by the paper's authors.
+
+The paper supplies the shared recurrent core, input reinjection and continuous
+depth-conditioning ideas. This project adapts them to RGB classification with a
+learned fixed condition, a normalized/modulated GAP + linear readout, and final
+cross-entropy. It adds FAS training, epoch-boundary resume, evaluation and image
+prediction tools. It does not implement the original generative trajectory loss,
+VAE, flow sampler or classifier-free guidance. Official checkpoint compatibility
+and classification gains from additional loops have not been established.
+
+Block implementation choices reference [SpeedrunDiT](https://github.com/SwayStar123/SpeedrunDiT)
+by Swayam Bhanded. Its MIT notice is retained in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); the
+[architecture document](docs/architecture.md) distinguishes retained components,
+adaptations and unverified details. Please credit the original paper and relevant
+upstream work when using this adaptation.
+
+Original project code and documentation use [MIT](LICENSE). The included,
+unchanged paper PDF retains [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+and is excluded from this project's MIT grant. Datasets and pretrained weights
+are not included or licensed by this repository.
+
+```bibtex
+@misc{derakhshani2026lift,
+  title = {LiFT: Loop Flow Transformers},
+  author = {Mohammad Mahdi Derakhshani and Pedro M. P. Curvo and
+            Gertjan J. Burghouts and Jan-Willem van de Meent and Cees G. M. Snoek},
+  year = {2026},
+  eprint = {2610.05538},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.LG},
+  url = {https://arxiv.org/abs/2610.05538v1}
+}
+```
 
 ## Install and run
 
@@ -27,7 +68,9 @@ python -m pytest -q
 The FAS trainer preserves the original `train/{fake,live}` and `test/{fake,live}`
 directories, using `test` as **validation for checkpoint selection**. It retains
 duplicates as requested and records their hashes and cross-split overlap. These
-scores are not independent test/generalization results.
+scores are not independent test/generalization results. Dataset-specific counts
+in the guides describe a historical private local audit, not bundled data or a
+standard public benchmark.
 
 Run these tools from the repository root. For RTX 5090, first install a matching
 official PyTorch/torchvision CUDA 12.8+ build that supports Blackwell; the model's
@@ -72,6 +115,11 @@ Inputs are floating point `[B,in_channels,H,W]`. Choose image preprocessing and
 normalization for the classification dataset; the model performs neither resizing
 nor pixel-value normalization. Actual H/W may differ from `image_size`, but must
 be positive multiples of `patch_size`. Rectangular images and patches are supported.
+
+Prediction CSV paths are relative to a directory input, or just the filename for
+a single image. Evaluation reports record only the checkpoint filename and omit
+the absolute data root. File and subdirectory names themselves are retained;
+review generated outputs before sharing them. See the [FAS guide](docs/fas_training.md).
 
 ## Intermediate supervision
 

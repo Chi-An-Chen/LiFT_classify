@@ -34,7 +34,7 @@ def main():
         metrics, predictions = evaluate(model, loader, device, loops)
         results[str(loops)] = metrics
         write_csv(args.output_dir / f"validation_predictions_k{loops}.csv", predictions)
-    report = dict(checkpoint=str(args.checkpoint.resolve()), data_root=str(args.data_root.resolve()),
+    report = dict(checkpoint=args.checkpoint.name,
                   split="test", role="validation", precision="fp32", device=str(device),
                   metrics_by_num_loops=results, checkpoint_training_protocol=checkpoint["protocol"],
                   checkpoint_cross_split_duplicate_groups=checkpoint["cross_split_duplicate_groups"],

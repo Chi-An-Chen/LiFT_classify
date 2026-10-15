@@ -17,8 +17,12 @@ mode and class. Corrupt images and conflicting labels on identical bytes raise
 errors with their paths. No original files are deleted, renamed or rewritten.
 There is no random train/validation split or deduplication.
 
-The user chose to keep `test` as validation for model selection, including known
-duplicates. On 2026-10-14 the full local audit decoded all **44,039** images:
+### Historical private-data audit (2026-10-14)
+
+The following counts and fingerprint describe one historical private local dataset,
+not an included dataset, a required input size, or a standard public benchmark.
+That experiment kept `test` as validation for model selection, including known
+duplicates. The local audit decoded all **44,039** images:
 
 | Split | Fake | Live | Total |
 |---|---:|---:|---:|
@@ -164,6 +168,19 @@ augmentation is used. `--num-loops` optionally overrides the checkpoint default
 in prediction. CSVs include p_live, p_fake and the fixed-threshold label. Standalone
 evaluation reads `test/` as validation; it reports checkpoint overlap provenance
 but does not assert a fresh train/test hash audit on a different supplied dataset.
+
+Prediction CSV `path` values are POSIX paths relative to the directory supplied
+with `--input`; a single-image input records only its filename. Subdirectories
+are retained to distinguish files with the same basename. Evaluation JSON keeps
+`checkpoint` as a filename and omits `data_root`; this intentionally changes the
+report metadata, not checkpoint compatibility or prediction values. Callers that
+previously relied on absolute paths must join the relative prediction path to
+their own input root. Training/evaluation manifests already use relative paths.
+
+These outputs do not anonymize image filenames or subdirectory names. Console
+messages and errors can show input/output paths for local diagnosis; do not publish
+unreviewed logs, datasets, manifests or weights. The repository ignores standard
+output directories; custom output locations must also stay out of version control.
 
 ## Validation boundary
 

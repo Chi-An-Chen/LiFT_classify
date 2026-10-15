@@ -18,7 +18,15 @@ freeze the behavioral contract used for this implementation. GitHub commit metad
 was inaccessible, so an immutable upstream commit/hash is **not verified**. A cached
 GitHub HTML view reported a different file length; `main` links alone are not a
 version pin. Recheck upstream against this contract before claiming exact code
-parity or loading an official checkpoint. No official LiFT code or checkpoint was
+parity or loading an official checkpoint.
+
+For release preparation on 2026-10-15, the current upstream reference was verified
+as commit `c24c2ff25699cce63174ca56c2afcfeeb225e367`
+([source](https://github.com/SwayStar123/SpeedrunDiT/blob/c24c2ff25699cce63174ca56c2afcfeeb225e367/models/sit.py)).
+This is a later reference check, not a retroactive pin of the original snapshot.
+Attribution and license scope are recorded in [third-party notices](../THIRD_PARTY_NOTICES.md).
+
+No official LiFT code or checkpoint was
 verified: the paper links say Coming Soon and the author's demo source was
 inaccessible. This package does not claim official checkpoint compatibility.
 

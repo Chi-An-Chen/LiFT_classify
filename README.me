@@ -7,6 +7,40 @@ input reinjection 與 continuous depth conditioning。同一組權重可在推�
 Flow Matching。已提供 FAS 二分類訓練、驗證與推論入口；增加 loops 是否改善分類準確率，
 仍需要另外實驗驗證。
 
+## 來源、改編與授權
+
+本專案由 Chi-An Chen 改編，是 **非官方分類實作**，不代表原作者背書或合作。
+原論文為 **LiFT: Loop Flow Transformers**（2026），作者為 Mohammad Mahdi
+Derakhshani、Pedro M. P. Curvo、Gertjan J. Burghouts、Jan-Willem van de Meent
+與 Cees G. M. Snoek。[論文 v1](https://arxiv.org/abs/2610.05538v1)。
+
+保留原論文的共享 recurrent core、input reinjection 與 continuous depth conditioning；
+本專案改為 RGB 分類輸入、固定可學習 conditioning、經 normalization/modulation 的
+GAP + linear 分類 head，以及 final cross-entropy，並加入 FAS 訓練、epoch 邊界續訓、
+評估與推論工具。未實作原論文的 generative trajectory loss、VAE、flow sampler 或 CFG；
+未驗證官方權重相容性，也未證明增加 loops 會提升分類準確率。
+
+Block 實作選擇參考 Swayam Bhanded 的
+[SpeedrunDiT](https://github.com/SwayStar123/SpeedrunDiT)，完整 MIT 聲明保留於
+[第三方聲明](THIRD_PARTY_NOTICES.md)。使用本改編時請同時註明原論文與相關上游工作。
+
+本專案原創程式與文件採 [MIT](LICENSE)。保留不變的原論文 PDF 仍適用
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)，不在本專案 MIT 授權範圍內。
+本 repo 不提供或授權資料集與預訓練權重。
+
+```bibtex
+@misc{derakhshani2026lift,
+  title = {LiFT: Loop Flow Transformers},
+  author = {Mohammad Mahdi Derakhshani and Pedro M. P. Curvo and
+            Gertjan J. Burghouts and Jan-Willem van de Meent and Cees G. M. Snoek},
+  year = {2026},
+  eprint = {2610.05538},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.LG},
+  url = {https://arxiv.org/abs/2610.05538v1}
+}
+```
+
 ## 安裝與測試
 
 環境需求：Python 3.10 以上、PyTorch 2.2 以上。模型執行僅依賴 PyTorch；測試使用 pytest。
@@ -48,9 +82,14 @@ python -m tools.evaluate --checkpoint outputs/fas_lift_tiny/best.pt \
 ```
 
 保留原始 train／test 與所有重複圖片，`test` 作為挑選模型的 validation。
-已知有 176 組完全重複影像跨越 train／test，因此分數不可當成獨立泛化成績。
+2026-10-14 的私人本機資料稽核曾記錄 176 組完全重複影像跨越 train／test，
+這是歷史資料快照，不代表其他使用者的資料或公開 benchmark；分數不可當成獨立泛化成績。
 類別為 fake=0、live=1，固定 `p_live >= 0.5` 判定 live；不調整門檻來挑選最佳成績。
 詳細參數、輸出與續訓限制見 [FAS 訓練說明](docs/fas_training.md)。
+
+推論 CSV 的 `path` 使用相對於輸入資料夾的路徑；單張輸入只記錄檔名。
+評估 JSON 只記錄 checkpoint 檔名，不寫入絕對資料根目錄。檔名與相對子目錄仍會保留，
+分享輸出前應檢查其內容。
 
 ## 快速開始
 

@@ -1,5 +1,28 @@
 # Validation
 
+## Public-release preparation (2026-10-15)
+
+After the attribution/license and report-path changes, the complete suite passed
+**149 tests with 2 CUDA tests skipped** in 43.23 seconds. This run was outside the
+sandbox so multiprocessing shared memory and MPS were available. It includes the
+existing exact CPU resume check and new assertions for single-image filenames,
+directory-relative prediction paths with duplicate basenames, and evaluation
+reports without absolute dataset/checkpoint paths. No full training or CUDA
+benchmark was performed.
+
+Wheel building succeeded; its metadata names Chi-An Chen and includes both the
+MIT LICENSE and THIRD_PARTY_NOTICES.md. Local Markdown links and diff whitespace
+checks passed. The isolated release history retains five commits with public
+noreply identities; all reachable historical blobs and current source files were
+scanned for known private paths, private email addresses and common credential
+formats, with no matches. This is a targeted scan, not proof that every possible
+secret format is absent. The original paper PDF's bytes were preserved.
+
+These checks apply to the prepared local release copy. Remote history replacement
+and a fresh-clone verification remain required before changing visibility.
+
+## Earlier validation records
+
 The original model-only results below predate the FAS trainer. The added FAS
 training, resume and inference suite now passes **149 tests with 2 CUDA skips**;
 MPS FP32 inference and multi-worker loading were checked outside the sandbox.

@@ -1,4 +1,5 @@
 from dataclasses import asdict
+import csv
 import json
 import subprocess
 import sys
@@ -121,13 +122,30 @@ def test_train_resume_matches_uninterrupted_and_cli_roundtrip(fas_root,run_confi
     prediction=tmp_path/"predictions.csv"
     subprocess.run([sys.executable,"-m","tools.predict","--checkpoint",str(resumed/"best.pt"),
                     "--input",str(fas_root/"test/live/0.png"),"--output",str(prediction),"--device","cpu"],check=True)
-    assert "p_live" in prediction.read_text()
+    with prediction.open(newline="") as stream:
+        single_rows = list(csv.DictReader(stream))
+    assert single_rows[0]["path"] == "0.png"
+    assert "p_live" in single_rows[0]
+    directory_prediction = tmp_path / "directory_predictions.csv"
+    subprocess.run([sys.executable, "-m", "tools.predict", "--checkpoint", str(resumed/"best.pt"),
+                    "--input", str(fas_root/"test"), "--output", str(directory_prediction),
+                    "--device", "cpu"], check=True)
+    with directory_prediction.open(newline="") as stream:
+        directory_rows = list(csv.DictReader(stream))
+    expected_paths = {r["relative_path"].removeprefix("test/")
+                      for r in discover_records(fas_root, "test")}
+    assert {r["path"] for r in directory_rows} == expected_paths
+    assert {"fake/0.png", "live/0.png"} <= expected_paths
+    assert str(fas_root) not in directory_prediction.read_text()
     evaluation_dir=tmp_path/"evaluation"
     subprocess.run([sys.executable,"-m","tools.evaluate","--checkpoint",str(resumed/"best.pt"),
                     "--data-root",str(fas_root),"--output-dir",str(evaluation_dir),"--device","cpu",
                     "--batch-size","3"],check=True)
     evaluated=json.loads((evaluation_dir/"validation_report.json").read_text())
     assert evaluated["metrics_by_num_loops"]["2"]["acer"] == metrics["acer"]
+    assert evaluated["checkpoint"] == "best.pt"
+    assert "data_root" not in evaluated
+    assert str(tmp_path) not in (evaluation_dir/"validation_report.json").read_text()
     subprocess.run([sys.executable,"tools.train.py","--resume",str(resumed/"last.pt"),
                     "--data-root",str(fas_root),"--output-dir",str(resumed),"--device","cpu"],check=True)
     with pytest.raises(ValueError,match="not empty"):

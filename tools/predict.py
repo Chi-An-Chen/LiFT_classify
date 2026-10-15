@@ -25,7 +25,8 @@ def main():
     device = resolve_device(args.device)
     model, checkpoint = load_model(args.checkpoint, device)
     transform = FASTransform(checkpoint["preprocessing"])
-    files = sorted(p for p in args.input.rglob("*") if p.is_file() and p.suffix.lower() in EXTENSIONS) if args.input.is_dir() else [args.input]
+    input_is_directory = args.input.is_dir()
+    files = sorted(p for p in args.input.rglob("*") if p.is_file() and p.suffix.lower() in EXTENSIONS) if input_is_directory else [args.input]
     if not files:
         parser.error("No input images found")
     records = []
@@ -37,7 +38,8 @@ def main():
             if not torch.isfinite(logits).all():
                 raise FloatingPointError(f"Non-finite prediction for {path}")
             probability = logits.softmax(-1)[0, 1].item()
-            records.append(dict(path=str(path), p_live=probability, p_fake=1-probability,
+            reported_path = path.relative_to(args.input).as_posix() if input_is_directory else path.name
+            records.append(dict(path=reported_path, p_live=probability, p_fake=1-probability,
                                 prediction="live" if probability >= 0.5 else "fake",
                                 threshold=0.5, num_loops=args.num_loops or model.config.num_loops))
     write_csv(args.output, records)
