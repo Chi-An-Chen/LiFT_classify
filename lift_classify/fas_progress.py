@@ -3,6 +3,7 @@
 import time
 
 from rich.progress import (BarColumn, Progress, TextColumn, TimeRemainingColumn)
+from rich.table import Column
 
 
 def make_progress(*, console=None):
@@ -10,7 +11,8 @@ def make_progress(*, console=None):
         TextColumn("{task.description}"),
         BarColumn(),
         TextColumn("{task.completed:.0f}/{task.total:.0f}"),
-        TextColumn("{task.fields[stats]}\n{task.fields[speed]} img/s · peak={task.fields[peak]} GiB"),
+        TextColumn("{task.fields[stats]} · {task.fields[speed]} img/s · peak={task.fields[peak]} GiB",
+                   table_column=Column(no_wrap=True)),
         TextColumn("ETA"), TimeRemainingColumn(),
         refresh_per_second=4,
         console=console,
