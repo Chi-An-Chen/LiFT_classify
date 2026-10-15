@@ -35,9 +35,9 @@ minimum PyTorch version alone does not ensure GPU compatibility.
 
 ```sh
 python -m pip install -e '.[train,test]'
-python -m tools.train --config configs/fas_lift_tiny.json \
+python tools.train.py --config configs/fas_lift_tiny.json \
   --data-root /path/to/FAS_all --output-dir outputs/fas_lift_tiny --device cuda
-python -m tools.train --data-root /path/to/FAS_all \
+python tools.train.py --data-root /path/to/FAS_all \
   --output-dir outputs/fas_lift_tiny --resume outputs/fas_lift_tiny/last.pt --device cuda
 python -m tools.predict --checkpoint outputs/fas_lift_tiny/best.pt \
   --input /path/to/image.jpg --output outputs/predictions.csv --device auto

@@ -88,18 +88,32 @@ def classification_metrics(labels, probabilities) -> dict:
 
 
 @torch.inference_mode()
-def evaluate(model, loader, device: torch.device, num_loops: int | None = None) -> tuple[dict, list[dict]]:
+def evaluate(model, loader, device: torch.device, num_loops: int | None = None,
+             *, batch_progress=None) -> tuple[dict, list[dict]]:
     model.eval()
     records, loss_sum = [], 0.0
-    for images, labels, paths in loader:
+    # Rows are true classes (fake/live), columns are predictions at the existing >= 0.5 threshold.
+    confusion = np.zeros((2, 2), dtype=np.int64)
+    for step, (images, labels, paths) in enumerate(loader, 1):
         images, labels = images.to(device), labels.to(device)
         logits = model(images, num_loops=num_loops).float()
         if not torch.isfinite(logits).all():
             raise FloatingPointError("Non-finite validation logits")
         loss_sum += F.cross_entropy(logits, labels, reduction="sum").item()
-        for path, label, probability in zip(paths, labels.cpu().tolist(), logits.softmax(-1)[:, 1].cpu().tolist()):
+        batch_labels = labels.cpu().tolist()
+        batch_probabilities = logits.softmax(-1)[:, 1].cpu().tolist()
+        for path, label, probability in zip(paths, batch_labels, batch_probabilities):
             records.append(dict(relative_path=path, label=label, p_live=probability,
                                 prediction=int(probability >= 0.5)))
+        if batch_progress is not None:
+            for label, probability in zip(batch_labels, batch_probabilities):
+                confusion[label, int(probability >= 0.5)] += 1
+            counts = confusion.sum(axis=1)
+            acer = ((confusion[0, 1] / counts[0] + confusion[1, 0] / counts[1]) / 2
+                    if (counts > 0).all() else None)
+            peak = torch.cuda.max_memory_allocated(device) / 1024**3 if device.type == "cuda" else None
+            batch_progress(step=step, loss=loss_sum / len(records), examples=len(records),
+                           accuracy=float(confusion.trace() / counts.sum()), acer=acer, peak=peak)
     metrics = classification_metrics([r["label"] for r in records], [r["p_live"] for r in records])
     metrics["loss"] = loss_sum / len(records)
     return metrics, records

@@ -91,7 +91,7 @@ build (CUDA 12.8+), not merely the package's model-only minimum torch version.
 Check the [official PyTorch installation selector](https://pytorch.org/get-started/locally/).
 
 ```sh
-python -m tools.train --config configs/fas_lift_tiny.json \
+python tools.train.py --config configs/fas_lift_tiny.json \
   --data-root /path/to/FAS_all --output-dir outputs/fas_lift_tiny --device cuda
 ```
 
@@ -99,9 +99,20 @@ The data root is portable; no local absolute dataset path is baked into code.
 `--epochs`, `--batch-size`, `--num-workers` override JSON values for a new run.
 For shorter runs, set `warmup_epochs < epochs` in the JSON. Model dimensions and
 optimizer settings are configurable in JSON. GPU OOM is surfaced; use a smaller
-batch in a new run rather than silently changing the recipe. The first ten actual
-training steps provide throughput/remaining-training-time and peak CUDA allocated
-memory, without extra optimizer warmup updates. No 5090 latency claim is made.
+batch in a new run rather than silently changing the recipe.
+
+`python tools.train.py`, `python tools/train.py`, and `python -m tools.train`
+use the same training entrypoint. Rich displays separate Train and Val progress
+bars per epoch, updated after each completed batch. Train shows cumulative
+weighted loss and accuracy; Val shows cumulative accuracy and fixed-0.5 ACER
+(ACER stays `--` until both classes have appeared). Each bar also shows images/s,
+ETA and peak CUDA allocated memory for that phase (`--` on CPU/MPS).
+The epoch summary follows the MobileCLIP trainer's field names and formatting:
+`loss`, `train acc`, `val acc`, `val ACER`, `best`, plus validation loss, APCER,
+BPCER, AUC and best epoch. No threshold calibration or AMP-skip fields are shown.
+The final best-checkpoint K sweep also displays validation progress. Redirected
+output retains completed bars and summaries without per-batch log spam.
+No extra optimizer warmup updates are performed and no 5090 latency claim is made.
 
 ## Checkpoints, resume and reports
 
@@ -117,7 +128,7 @@ via a temporary file and atomic replace. `best.pt` is an inference export; it is
 regenerated from `last.pt` on resume if interruption left the export missing/stale.
 
 ```sh
-python -m tools.train --data-root /path/to/FAS_all \
+python tools.train.py --data-root /path/to/FAS_all \
   --output-dir outputs/fas_lift_tiny --resume outputs/fas_lift_tiny/last.pt --device cuda
 ```
 

@@ -108,6 +108,16 @@ def test_train_resume_matches_uninterrupted_and_cli_roundtrip(fas_root,run_confi
     dataset=FASDataset(fas_root,discover_records(fas_root,"test"),FASTransform(checkpoint["preprocessing"]))
     metrics,_=evaluate(model,training.make_loader(dataset,run_config["training"],torch.device("cpu")),torch.device("cpu"))
     assert metrics == report["metrics_by_num_loops"]["2"]
+    events = []
+    progress_metrics, _ = evaluate(
+        model, training.make_loader(dataset, run_config["training"], torch.device("cpu")),
+        torch.device("cpu"), batch_progress=lambda **event: events.append(event))
+    assert progress_metrics == metrics
+    assert [event["step"] for event in events] == [1, 2]
+    assert events[0]["acer"] is None  # First batch contains only fake images.
+    assert events[-1]["examples"] == len(dataset)
+    for key in ("loss", "accuracy", "acer"):
+        assert events[-1][key] == pytest.approx(metrics[key])
     prediction=tmp_path/"predictions.csv"
     subprocess.run([sys.executable,"-m","tools.predict","--checkpoint",str(resumed/"best.pt"),
                     "--input",str(fas_root/"test/live/0.png"),"--output",str(prediction),"--device","cpu"],check=True)
@@ -118,7 +128,7 @@ def test_train_resume_matches_uninterrupted_and_cli_roundtrip(fas_root,run_confi
                     "--batch-size","3"],check=True)
     evaluated=json.loads((evaluation_dir/"validation_report.json").read_text())
     assert evaluated["metrics_by_num_loops"]["2"]["acer"] == metrics["acer"]
-    subprocess.run([sys.executable,"-m","tools.train","--resume",str(resumed/"last.pt"),
+    subprocess.run([sys.executable,"tools.train.py","--resume",str(resumed/"last.pt"),
                     "--data-root",str(fas_root),"--output-dir",str(resumed),"--device","cpu"],check=True)
     with pytest.raises(ValueError,match="not empty"):
         training.run_training(run_config,fas_root,resumed,"cpu")

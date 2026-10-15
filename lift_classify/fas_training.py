@@ -17,10 +17,12 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torchvision
+from rich.console import Console
 
 from .config import LiFTConfig, validate_integer
 from .model import LiFTClassifier
 from .fas_data import AUGMENTATION, CLASSES, FASTransform, FASDataset, audit_dataset, preprocessing_spec
+from .fas_progress import BatchProgress, make_progress
 from .fas_runtime import (evaluate, is_better, load_model, read_checkpoint, resolve_device,
                           save_checkpoint, write_csv, write_json)
 
@@ -146,11 +148,10 @@ def export_best(output_dir: Path, checkpoint: dict) -> None:
     save_checkpoint(output_dir / "best.pt", payload)
 
 
-def train_epoch(model, loader, optimizer, weights, device, settings, epoch):
+def train_epoch(model, loader, optimizer, weights, device, settings, epoch, *, batch_progress=None):
     model.train()
     loss_sum, weight_sum, correct, examples = 0.0, 0.0, 0, 0
-    durations = []
-    start = previous = time.perf_counter()
+    start = time.perf_counter()
     use_amp = device.type == "cuda" and settings["precision"] == "bf16"
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
@@ -170,22 +171,17 @@ def train_epoch(model, loader, optimizer, weights, device, settings, epoch):
         weight_sum += batch_weight
         correct += (logits.argmax(-1) == labels).sum().item()
         examples += len(labels)
-        now = time.perf_counter()
-        if step > 3:
-            durations.append(now - previous)
-        previous = now
-        if step == 10 or step % 50 == 0 or step == len(loader):
-            seconds_per_step = sum(durations[-50:]) / len(durations[-50:]) if durations else (now-start) / step
+        if batch_progress is not None:
             peak = torch.cuda.max_memory_allocated(device) / 1024**3 if device.type == "cuda" else None
-            print(f"epoch {epoch} step {step}/{len(loader)} loss={loss_sum/weight_sum:.5f} "
-                  f"images/s={examples/(now-start):.1f} train_eta_s={(len(loader)-step)*seconds_per_step:.0f} "
-                  f"peak_cuda_GiB={peak}", flush=True)
+            batch_progress(step=step, loss=loss_sum / weight_sum, examples=examples,
+                           accuracy=correct / examples, peak=peak)
     elapsed = time.perf_counter() - start
     return dict(train_loss=loss_sum / weight_sum, train_accuracy=correct / examples,
                 train_seconds=elapsed, train_images_per_second=examples / elapsed)
 
 
 def run_training(config: dict, data_root: Path, output_dir: Path, device_name="auto", resume: Path | None = None):
+    console = Console()
     config = validate_config(config)
     settings = config["training"]
     data_root, output_dir = Path(data_root).resolve(), Path(output_dir).resolve()
@@ -213,6 +209,7 @@ def run_training(config: dict, data_root: Path, output_dir: Path, device_name="a
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
+    console.print("正在檢查資料集：逐張解碼並計算 SHA256，請稍候。")
     records, audit = audit_dataset(data_root)
     if checkpoint is not None and checkpoint["dataset_fingerprint"] != audit["fingerprint"]:
         raise ValueError("Dataset contents changed since checkpoint; refusing an inconsistent resume")
@@ -222,8 +219,8 @@ def run_training(config: dict, data_root: Path, output_dir: Path, device_name="a
     write_json(output_dir / "config.json", config)
     env = environment(device, precision)
     write_json(output_dir / "environment.json", env)
-    print(f"Device={device}, training precision={precision}; {audit['protocol']}", flush=True)
-    print(f"Cross-split duplicate groups retained: {audit['cross_split_duplicate_groups']}", flush=True)
+    console.print(f"裝置={device}，訓練精度={precision}；test 用於驗證與模型選擇。")
+    console.print(f"保留跨訓練／驗證集重複內容群組：{audit['cross_split_duplicate_groups']}")
 
     spec = preprocessing_spec(config["model"]["image_size"][0])
     train_records = [r for r in records if r["split"] == "train"]
@@ -248,8 +245,15 @@ def run_training(config: dict, data_root: Path, output_dir: Path, device_name="a
     for epoch in range(start_epoch, settings["epochs"]):
         loader = make_loader(training, settings, device, training=True, epoch=epoch)
         used_lr = optimizer.param_groups[0]["lr"]
-        stats = train_epoch(model, loader, optimizer, weights, device, settings, epoch + 1)
-        metrics, _ = evaluate(model, val_loader, device)
+        console.print(f"Epoch {epoch + 1}/{settings['epochs']} · LR={used_lr:.3g}", style="bold")
+        with make_progress(console=console) as progress:
+            train_progress = BatchProgress(progress, "Train", len(loader))
+            val_progress = BatchProgress(progress, "Val  ", len(val_loader), validation=True)
+            stats = train_epoch(model, loader, optimizer, weights, device, settings, epoch + 1,
+                                batch_progress=train_progress.start())
+            if device.type == "cuda":
+                torch.cuda.reset_peak_memory_stats(device)
+            metrics, _ = evaluate(model, val_loader, device, batch_progress=val_progress.start())
         improved = is_better(metrics, best)
         if improved:
             best, best_epoch = metrics, epoch + 1
@@ -268,14 +272,26 @@ def run_training(config: dict, data_root: Path, output_dir: Path, device_name="a
         if improved:
             export_best(output_dir, payload)
         write_csv(output_dir / "history.csv", history)
-        print(f"epoch {epoch+1}: validation ACER={metrics['acer']:.6f}, "
-              f"AUC={metrics['roc_auc']:.6f}; best epoch={best_epoch}", flush=True)
+        console.print(
+            f"Epoch {epoch + 1}: loss={stats['train_loss']:.5f}, train acc={stats['train_accuracy']:.2%}, "
+            f"val acc={metrics['accuracy']:.2%}, val ACER={metrics['acer']:.4%}, "
+            f"best={best['acer']:.4%}\n"
+            f"val loss={metrics['loss']:.5f}, APCER={metrics['apcer']:.4%}, "
+            f"BPCER={metrics['bpcer']:.4%}, AUC={metrics['roc_auc']:.6f}, "
+            f"最佳 epoch={best_epoch}" + ("（已更新 best.pt）" if improved else ""),
+            markup=False,
+        )
     # History in last.pt is authoritative if interruption occurred during CSV writing.
     write_csv(output_dir / "history.csv", history)
     model, selected = load_model(output_dir / "best.pt", device)
     results = {}
     for loops in sorted({1, 2, 4, 8, config["model"]["num_loops"]}):
-        metrics, predictions = evaluate(model, val_loader, device, num_loops=loops)
+        with make_progress(console=console) as progress:
+            val_progress = BatchProgress(progress, f"Val K={loops}", len(val_loader), validation=True)
+            if device.type == "cuda":
+                torch.cuda.reset_peak_memory_stats(device)
+            metrics, predictions = evaluate(model, val_loader, device, num_loops=loops,
+                                             batch_progress=val_progress.start())
         results[str(loops)] = metrics
         write_csv(output_dir / f"validation_predictions_k{loops}.csv", predictions)
     report = dict(best_epoch=selected["epoch"], default_num_loops=config["model"]["num_loops"],
